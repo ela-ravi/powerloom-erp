@@ -1,0 +1,84 @@
+                                                                                                               
+  Architecture & Tech                                                                                             
+                                                                                                                  
+  1. Tech stack preference? — The doc mentions multi-tenant SaaS and mobile-first. Do you have a preferred stack
+  (e.g., Next.js, React Native, Flutter)? Or should I propose one?   
+  Ans: You can prefer one but mostly free versions                                             
+  2. Multi-tenancy model? — Separate database per tenant, shared DB with schema isolation, or shared DB with      
+  tenant_id row-level filtering?
+  Ans: What is recommended. We dont use batching mechanism but since this is SaaS, i think this will be helpful for others. If its an optional, it would help everyone.
+  3. Mobile-first — Does this mean a responsive web app, or a native mobile app (iOS/Android), or both?
+  Ans: native mobile app as well as Web app.
+
+  Batch & Production
+
+  4. Batch lifecycle — Can a closed batch be reopened? Can products from a closed batch still be sold, or must the
+  batch be open for sales?
+  Ans: yes. We dont use batching mechanism but since this is SaaS, i think this will be helpful for others. If its an optional, it would help everyone.
+  5. Partial batches — Can a wager work on multiple batches simultaneously? Can a single cone issuance span
+  multiple batches?
+  Ans: based on previous question's answers, recommend me
+  6. Paavu-to-piece ratio — Is this configured per product in the Product Master, or is it calculated dynamically
+  from the Paavu consumption per piece?
+  Ans: Per product
+
+  Wage Calculation
+
+  7. Weekly wage cycle — The doc mentions "Weekly wage" and V1 mentioned "Auto Sunday." Is the wage week always
+  Monday–Sunday, or is it configurable?
+  Ans: Configurable
+  8. Minimum net payable — If advance + damage deductions exceed gross wage, can the net payable go negative
+  (carried forward), or is there a minimum payout (e.g., zero)?
+  Ans: Sometimes Wagers will be paid eventhough net payable becomes zero or negative and then that will be reduced slowly in upcoming week wages.
+  9. Paavu Oati wage — How is the Paavu Oati's weekly wage calculated? Per Paavu count produced? Per kg of cone
+  consumed?
+  Ans: Per Paavu
+  10. Tailor & Packager wages — Are tailors paid per stitch/knot count, and packagers per bundle? Or are they
+  salaried?
+  Ans: Yes per stitch/knot count and per bundle
+
+  Damage & Deductions
+
+  11. Customer return damage — When damage is found at customer return, is the deduction still applied to the
+  original wager who produced it? How far back can this trace?
+  Ans: Yes. it can be teaced back any time in future. Some time we can't find the damage piece is from which wager, it will be in misc and we will use it for our purposes.
+  12. Damage grading — Is all damage treated equally, or are there grades (minor/major/reject) with different
+  deduction rates?
+Ans: Graded wold be great. currently we dont grade it. But for SaaS it would be great.
+  Sales & Finance
+
+  13. Credit period — Is the 30-day credit term fixed, or configurable per customer?
+  Ans: Configurable and proper notification should be displayed when due comes or crossed.
+  14. GST configuration — Is the GST rate configurable per product? Should the system handle CGST/SGST
+  (intra-state) vs IGST (inter-state) automatically based on customer location?
+  Ans: System should handle it.
+  15. Partial payments — Can customers make partial payments against an invoice, or is it full invoice settlement
+  only?
+Ans: Yes Partial Payment customers are also there and bill to bill settlement customers are also there.
+  Inventory & Godowns
+
+  16. Inter-godown transfers — Can stock be transferred between godowns? If so, should it maintain batch
+  traceability during transfer?
+  Ans: Yes. Inter-godown transfers can be optional for users.
+  17. Stock stages — Based on the flow, stock goes through: Raw (cone) → Paavu → Woven (loose) → Tailored →
+  Bundled → Sold. Should inventory be tracked at all these stages, or only at key stages?
+  Ans: What is recommended? It should not be a difficult for users to enter data frequently, because people use this are mostly 40+ aged people. Every stage should be fine but should be very easy.
+
+  Users & Permissions
+
+  18. User roles — The doc describes people (Owner, Wager, Tailor, etc.), but doesn't define system
+  roles/permissions. Should wagers have login access to see their own production/wage data, or is this an
+  owner-only system?
+  Ans: Yes Wagers should be able to see their transaction and products/ pieces they returned back and all their details.
+  19. Multi-user per tenant — Can an owner have employees/staff with limited access (e.g., a godown manager, an
+  accountant)?
+Ans: Yes.
+  Operational
+
+  20. Shift wage impact — If shift tracking is enabled, does the wage rate differ per shift (e.g., night shift
+  premium), or is it only for production tracking?
+  Ans: Yes it differs.
+  21. Downtime recording — Who records downtime? Is it self-reported by the wager, or entered by the owner?
+  Ans: Both
+  These answers will significantly shape the data model, feature scope, and architecture. Which ones would you
+  like to address first?
