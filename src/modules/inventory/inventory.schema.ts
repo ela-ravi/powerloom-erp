@@ -36,3 +36,8 @@ export const availableStockQuerySchema = z.object({
   godownId: z.string().uuid(),
   stage: z.enum(["raw_cone", "paavu", "woven", "tailored", "bundled", "sold"]).default("raw_cone"),
 });
+
+export const inventoryGroupedQuerySchema = z.object({
+  stage: z.enum(["raw_cone", "paavu", "woven", "tailored", "bundled"]),
+  godownId: z.string().uuid().optional(),
+});

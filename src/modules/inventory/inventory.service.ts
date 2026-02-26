@@ -250,6 +250,105 @@ export class InventoryService {
     }));
   }
 
+  async getGroupedByGodown(
+    tenantId: string,
+    query: { stage: string; godownId?: string },
+  ) {
+    const rows = await sql<
+      {
+        godown_id: string;
+        godown_name: string;
+        product_id: string | null;
+        product_name: string | null;
+        color: string;
+        quantity: string;
+        weight_kg: string;
+      }[]
+    >`
+      SELECT
+        i.godown_id, g.name AS godown_name,
+        i.product_id, p.name AS product_name,
+        i.color,
+        COALESCE(SUM(i.quantity), 0) AS quantity,
+        COALESCE(SUM(i.weight_kg), 0) AS weight_kg
+      FROM inventory i
+      LEFT JOIN godowns g ON g.id = i.godown_id
+      LEFT JOIN products p ON p.id = i.product_id
+      WHERE i.tenant_id = ${tenantId}
+        AND i.stage = ${query.stage}
+        AND i.quantity > 0
+        ${query.godownId ? sql`AND i.godown_id = ${query.godownId}` : sql``}
+      GROUP BY i.godown_id, g.name, i.product_id, p.name, i.color
+      ORDER BY g.name, p.name, i.color
+    `;
+
+    // Group flat rows into nested godown structure
+    const godownMap = new Map<
+      string,
+      {
+        godownId: string;
+        godownName: string;
+        totalQuantity: number;
+        totalWeightKg: number;
+        colors: Set<string>;
+        products: Set<string>;
+        items: { productId: string | null; productName: string | null; color: string; quantity: number; weightKg: number }[];
+      }
+    >();
+
+    let grandTotalQty = 0;
+    let grandTotalWeight = 0;
+
+    for (const row of rows) {
+      const qty = parseFloat(row.quantity);
+      const wt = parseFloat(row.weight_kg);
+      grandTotalQty += qty;
+      grandTotalWeight += wt;
+
+      let group = godownMap.get(row.godown_id);
+      if (!group) {
+        group = {
+          godownId: row.godown_id,
+          godownName: row.godown_name ?? "Unknown",
+          totalQuantity: 0,
+          totalWeightKg: 0,
+          colors: new Set(),
+          products: new Set(),
+          items: [],
+        };
+        godownMap.set(row.godown_id, group);
+      }
+
+      group.totalQuantity += qty;
+      group.totalWeightKg += wt;
+      group.colors.add(row.color);
+      if (row.product_name) group.products.add(row.product_name);
+      group.items.push({
+        productId: row.product_id,
+        productName: row.product_name,
+        color: row.color,
+        quantity: qty,
+        weightKg: wt,
+      });
+    }
+
+    const godowns = Array.from(godownMap.values()).map((g) => ({
+      godownId: g.godownId,
+      godownName: g.godownName,
+      totalQuantity: g.totalQuantity,
+      totalWeightKg: g.totalWeightKg,
+      colorCount: g.colors.size,
+      productCount: g.products.size,
+      items: g.items,
+    }));
+
+    return {
+      stage: query.stage,
+      grandTotal: { quantity: grandTotalQty, weightKg: grandTotalWeight },
+      godowns,
+    };
+  }
+
   async getMovements(
     tenantId: string,
     inventoryId: string,

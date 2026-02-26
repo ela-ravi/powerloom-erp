@@ -37,4 +37,6 @@ export const conePurchaseListQuerySchema = z.object({
   supplierId: z.string().uuid().optional(),
   productId: z.string().uuid().optional(),
   supplierType: z.string().max(100).optional(),
+  purchaseDateFrom: z.string().optional(),
+  purchaseDateTo: z.string().optional(),
 });

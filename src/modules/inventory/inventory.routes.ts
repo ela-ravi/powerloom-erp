@@ -9,6 +9,7 @@ import {
   movementListQuerySchema,
   allMovementsQuerySchema,
   availableStockQuerySchema,
+  inventoryGroupedQuerySchema,
 } from "./inventory.schema.js";
 import { InventoryService } from "./inventory.service.js";
 
@@ -65,6 +66,26 @@ router.get(
     try {
       const authReq = req as AuthenticatedRequest;
       const result = await service.getAvailableStock(
+        authReq.user.tenantId,
+        req.query as any,
+      );
+      res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// GET /api/inventory/grouped
+router.get(
+  "/grouped",
+  authenticate,
+  validate({ query: inventoryGroupedQuerySchema }),
+  tenantScope,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const result = await service.getGroupedByGodown(
         authReq.user.tenantId,
         req.query as any,
       );

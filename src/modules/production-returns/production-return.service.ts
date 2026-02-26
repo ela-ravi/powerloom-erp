@@ -20,6 +20,12 @@ interface ProductionReturnRow {
   created_by: string;
   created_at: Date;
   updated_at: Date;
+  wager_name: string | null;
+  loom_number: string | null;
+  godown_name: string | null;
+  product_name: string | null;
+  batch_number: string | null;
+  shift_name: string | null;
 }
 
 function toResponse(row: ProductionReturnRow) {
@@ -27,12 +33,18 @@ function toResponse(row: ProductionReturnRow) {
     id: row.id,
     tenantId: row.tenant_id,
     wagerId: row.wager_id,
+    wagerName: row.wager_name,
     loomId: row.loom_id,
+    loomName: row.loom_number,
     godownId: row.godown_id,
+    godownName: row.godown_name,
     productId: row.product_id,
+    productName: row.product_name,
     color: row.color,
     batchId: row.batch_id,
+    batchName: row.batch_number,
     shiftId: row.shift_id,
+    shiftName: row.shift_name,
     pieceCount: row.piece_count,
     weightKg: row.weight_kg ? parseFloat(row.weight_kg) : null,
     wastageKg: parseFloat(row.wastage_kg),
@@ -46,6 +58,72 @@ function toResponse(row: ProductionReturnRow) {
 }
 
 export class ProductionReturnService {
+  async getWagerContext(tenantId: string, wagerId: string) {
+    const [wagerProfile, assignedLooms, recentCombos, issuedColors] = await Promise.all([
+      sql<{ wager_type: number }[]>`
+        SELECT wp.wager_type
+        FROM wager_profiles wp
+        WHERE wp.user_id = ${wagerId} AND wp.tenant_id = ${tenantId}
+      `,
+      sql<{ id: string; loom_number: string; loom_type_name: string | null }[]>`
+        SELECT l.id, l.loom_number, lt.name AS loom_type_name
+        FROM looms l
+        LEFT JOIN loom_types lt ON lt.id = l.loom_type_id
+        WHERE l.assigned_wager_id = ${wagerId} AND l.tenant_id = ${tenantId} AND l.is_active = true
+        ORDER BY l.loom_number
+      `,
+      sql<{
+        product_id: string; product_name: string | null;
+        color: string;
+        godown_id: string; godown_name: string | null;
+        batch_id: string | null; batch_number: string | null;
+      }[]>`
+        SELECT DISTINCT ON (pr.product_id, pr.color, pr.godown_id)
+          pr.product_id, p.name AS product_name,
+          pr.color,
+          pr.godown_id, g.name AS godown_name,
+          pr.batch_id, b.batch_number
+        FROM production_returns pr
+        LEFT JOIN products p ON p.id = pr.product_id
+        LEFT JOIN godowns g ON g.id = pr.godown_id
+        LEFT JOIN batches b ON b.id = pr.batch_id
+        WHERE pr.wager_id = ${wagerId} AND pr.tenant_id = ${tenantId}
+        ORDER BY pr.product_id, pr.color, pr.godown_id, pr.return_date DESC
+        LIMIT 30
+      `,
+      sql<{ color: string }[]>`
+        SELECT DISTINCT cii.color
+        FROM cone_issuance_items cii
+        JOIN cone_issuances ci ON ci.id = cii.cone_issuance_id
+        WHERE ci.wager_id = ${wagerId} AND ci.tenant_id = ${tenantId}
+        ORDER BY cii.color
+      `,
+    ]);
+
+    if (wagerProfile.length === 0) {
+      throw AppError.notFound("Wager profile not found");
+    }
+
+    return {
+      wagerType: wagerProfile[0].wager_type,
+      assignedLooms: assignedLooms.map((l) => ({
+        id: l.id,
+        loomNumber: l.loom_number,
+        loomTypeName: l.loom_type_name,
+      })),
+      recentCombos: recentCombos.map((r) => ({
+        productId: r.product_id,
+        productName: r.product_name,
+        color: r.color,
+        godownId: r.godown_id,
+        godownName: r.godown_name,
+        batchId: r.batch_id,
+        batchNumber: r.batch_number,
+      })),
+      issuedColors: issuedColors.map((r) => r.color),
+    };
+  }
+
   async create(
     tenantId: string,
     userId: string,
@@ -231,21 +309,34 @@ export class ProductionReturnService {
     const offset = query.offset ?? 0;
 
     const countResult = await sql<{ count: string }[]>`
-      SELECT COUNT(*) as count FROM production_returns
-      WHERE tenant_id = ${tenantId}
-      ${query.wagerId ? sql`AND wager_id = ${query.wagerId}` : sql``}
-      ${query.loomId ? sql`AND loom_id = ${query.loomId}` : sql``}
-      ${query.productId ? sql`AND product_id = ${query.productId}` : sql``}
+      SELECT COUNT(*) as count FROM production_returns pr
+      WHERE pr.tenant_id = ${tenantId}
+      ${query.wagerId ? sql`AND pr.wager_id = ${query.wagerId}` : sql``}
+      ${query.loomId ? sql`AND pr.loom_id = ${query.loomId}` : sql``}
+      ${query.productId ? sql`AND pr.product_id = ${query.productId}` : sql``}
     `;
     const total = parseInt(countResult[0].count, 10);
 
     const data = await sql<ProductionReturnRow[]>`
-      SELECT * FROM production_returns
-      WHERE tenant_id = ${tenantId}
-      ${query.wagerId ? sql`AND wager_id = ${query.wagerId}` : sql``}
-      ${query.loomId ? sql`AND loom_id = ${query.loomId}` : sql``}
-      ${query.productId ? sql`AND product_id = ${query.productId}` : sql``}
-      ORDER BY return_date DESC, created_at DESC
+      SELECT pr.*,
+        u.name AS wager_name,
+        l.loom_number,
+        g.name AS godown_name,
+        p.name AS product_name,
+        b.batch_number,
+        s.name AS shift_name
+      FROM production_returns pr
+      LEFT JOIN users u ON u.id = pr.wager_id
+      LEFT JOIN looms l ON l.id = pr.loom_id
+      LEFT JOIN godowns g ON g.id = pr.godown_id
+      LEFT JOIN products p ON p.id = pr.product_id
+      LEFT JOIN batches b ON b.id = pr.batch_id
+      LEFT JOIN shifts s ON s.id = pr.shift_id
+      WHERE pr.tenant_id = ${tenantId}
+      ${query.wagerId ? sql`AND pr.wager_id = ${query.wagerId}` : sql``}
+      ${query.loomId ? sql`AND pr.loom_id = ${query.loomId}` : sql``}
+      ${query.productId ? sql`AND pr.product_id = ${query.productId}` : sql``}
+      ORDER BY pr.return_date DESC, pr.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
 

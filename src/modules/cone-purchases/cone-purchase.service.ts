@@ -281,6 +281,8 @@ export class ConePurchaseService {
       supplierId?: string;
       productId?: string;
       supplierType?: string;
+      purchaseDateFrom?: string;
+      purchaseDateTo?: string;
     } = {},
   ) {
     const limit = query.limit ?? 20;
@@ -292,6 +294,8 @@ export class ConePurchaseService {
       ${query.supplierId ? sql`AND supplier_id = ${query.supplierId}` : sql``}
       ${query.productId ? sql`AND product_id = ${query.productId}` : sql``}
       ${query.supplierType ? sql`AND supplier_type = ${query.supplierType}` : sql``}
+      ${query.purchaseDateFrom ? sql`AND purchase_date >= ${query.purchaseDateFrom}` : sql``}
+      ${query.purchaseDateTo ? sql`AND purchase_date <= ${query.purchaseDateTo}` : sql``}
     `;
     const total = parseInt(countResult[0].count, 10);
 
@@ -305,6 +309,8 @@ export class ConePurchaseService {
       ${query.supplierId ? sql`AND cp.supplier_id = ${query.supplierId}` : sql``}
       ${query.productId ? sql`AND cp.product_id = ${query.productId}` : sql``}
       ${query.supplierType ? sql`AND cp.supplier_type = ${query.supplierType}` : sql``}
+      ${query.purchaseDateFrom ? sql`AND cp.purchase_date >= ${query.purchaseDateFrom}` : sql``}
+      ${query.purchaseDateTo ? sql`AND cp.purchase_date <= ${query.purchaseDateTo}` : sql``}
       ORDER BY cp.purchase_date DESC, cp.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
