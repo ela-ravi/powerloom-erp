@@ -1,6 +1,42 @@
+# dependencies
 node_modules/
+
+# build output
 dist/
+
+# test
 coverage/
+
+# environment
 .env
+.env.local
+.env.test
+.env.production
+
+# logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# drizzle
+drizzle/meta/
+
+# docker
+docker-compose.override.yml
+
+# claude code
+.claude/settings.json
+.claude/settings.local.json
+
+# misc
+*.pem
