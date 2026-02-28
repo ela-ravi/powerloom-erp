@@ -49,7 +49,7 @@ router.put(
       const authReq = req as AuthenticatedRequest;
       const result = await service.update(
         authReq.user.tenantId,
-        req.params.id,
+        req.params.id as string,
         authReq.user.id,
         req.body,
       );
@@ -69,7 +69,7 @@ router.delete(
   async (req, res, next) => {
     try {
       const authReq = req as AuthenticatedRequest;
-      await service.delete(authReq.user.tenantId, req.params.id);
+      await service.delete(authReq.user.tenantId, req.params.id as string);
       res.json({ data: { message: "Cone purchase deleted" } });
     } catch (err) {
       next(err);

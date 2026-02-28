@@ -176,11 +176,12 @@ export class LoomService {
 
     // Use explicit assigned_wager_id update if provided (including null to clear)
     const updateWager = data.assignedWagerId !== undefined;
+    const wagerIdFragment = updateWager ? (data.assignedWagerId ?? null) : sql`assigned_wager_id`;
     const result = await sql<LoomRow[]>`
       UPDATE looms SET
         loom_type_id = COALESCE(${data.loomTypeId ?? null}, loom_type_id),
         loom_number = COALESCE(${data.loomNumber ?? null}, loom_number),
-        assigned_wager_id = ${updateWager ? data.assignedWagerId : sql`assigned_wager_id`},
+        assigned_wager_id = ${wagerIdFragment},
         ownership = COALESCE(${data.ownership ?? null}, ownership),
         maintenance_status = COALESCE(${data.maintenanceStatus ?? null}, maintenance_status),
         is_active = COALESCE(${data.isActive ?? null}, is_active),

@@ -66,7 +66,7 @@ router.get(
       const authReq = req as AuthenticatedRequest;
       const result = await service.findById(
         authReq.user.tenantId,
-        req.params.id,
+        req.params.id as string,
       );
       res.json({ data: result });
     } catch (err) {
