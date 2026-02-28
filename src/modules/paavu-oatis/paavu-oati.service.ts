@@ -141,4 +141,41 @@ export class PaavuOatiService {
     `;
     return toResponse(result[0]);
   }
+
+  async delete(tenantId: string, id: string) {
+    const existing = await sql<PaavuOatiProfileRow[]>`
+      SELECT * FROM paavu_oati_profiles WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Paavu Oati profile not found");
+    }
+
+    const userId = existing[0].user_id;
+
+    // Check paavu_issuances for references to this profile's user
+    const issuanceInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM paavu_issuances
+      WHERE tenant_id = ${tenantId} AND wager_id = ${userId}
+    `;
+    if (parseInt(issuanceInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this Paavu Oati — it has paavu issuance records",
+      );
+    }
+
+    // Check wage_records for worker references
+    const wageInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM wage_records
+      WHERE tenant_id = ${tenantId} AND worker_id = ${userId}
+    `;
+    if (parseInt(wageInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this Paavu Oati — it has wage records",
+      );
+    }
+
+    await sql`
+      DELETE FROM paavu_oati_profiles WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+  }
 }

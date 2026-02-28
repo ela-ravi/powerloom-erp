@@ -223,4 +223,27 @@ export class LoomService {
     `;
     return toResponse(result[0]);
   }
+
+  async delete(tenantId: string, id: string) {
+    const existing = await sql<LoomRow[]>`
+      SELECT * FROM looms WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Loom not found");
+    }
+
+    const inUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM production_returns
+      WHERE tenant_id = ${tenantId} AND loom_id = ${id}
+    `;
+    if (parseInt(inUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this loom — it has production returns recorded against it",
+      );
+    }
+
+    await sql`
+      DELETE FROM looms WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+  }
 }

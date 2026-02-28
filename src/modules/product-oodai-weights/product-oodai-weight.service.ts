@@ -5,6 +5,7 @@ interface ProductOodaiWeightRow {
   tenant_id: string;
   product_id: string;
   oodai_weight_kg: string;
+  pieces_per_kg: number | null;
   created_at: Date;
   updated_at: Date;
   product_name?: string;
@@ -16,6 +17,7 @@ function toResponse(row: ProductOodaiWeightRow) {
     tenantId: row.tenant_id,
     productId: row.product_id,
     oodaiWeightKg: parseFloat(row.oodai_weight_kg),
+    piecesPerKg: row.pieces_per_kg ?? null,
     productName: row.product_name ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -36,13 +38,14 @@ export class ProductOodaiWeightService {
 
   async upsert(
     tenantId: string,
-    data: { productId: string; oodaiWeightKg: number },
+    data: { productId: string; oodaiWeightKg: number; piecesPerKg?: number | null },
   ) {
+    const piecesPerKg = data.piecesPerKg ?? null;
     const result = await sql<ProductOodaiWeightRow[]>`
-      INSERT INTO product_oodai_weights (tenant_id, product_id, oodai_weight_kg)
-      VALUES (${tenantId}, ${data.productId}, ${data.oodaiWeightKg})
+      INSERT INTO product_oodai_weights (tenant_id, product_id, oodai_weight_kg, pieces_per_kg)
+      VALUES (${tenantId}, ${data.productId}, ${data.oodaiWeightKg}, ${piecesPerKg})
       ON CONFLICT (tenant_id, product_id)
-      DO UPDATE SET oodai_weight_kg = ${data.oodaiWeightKg}, updated_at = NOW()
+      DO UPDATE SET oodai_weight_kg = ${data.oodaiWeightKg}, pieces_per_kg = ${piecesPerKg}, updated_at = NOW()
       RETURNING *
     `;
     return toResponse(result[0]);
@@ -50,16 +53,17 @@ export class ProductOodaiWeightService {
 
   async bulkUpsert(
     tenantId: string,
-    items: { productId: string; oodaiWeightKg: number }[],
+    items: { productId: string; oodaiWeightKg: number; piecesPerKg?: number | null }[],
   ) {
     return await sql.begin(async (tx) => {
       const results: ProductOodaiWeightRow[] = [];
       for (const item of items) {
+        const piecesPerKg = item.piecesPerKg ?? null;
         const row = await tx<ProductOodaiWeightRow[]>`
-          INSERT INTO product_oodai_weights (tenant_id, product_id, oodai_weight_kg)
-          VALUES (${tenantId}, ${item.productId}, ${item.oodaiWeightKg})
+          INSERT INTO product_oodai_weights (tenant_id, product_id, oodai_weight_kg, pieces_per_kg)
+          VALUES (${tenantId}, ${item.productId}, ${item.oodaiWeightKg}, ${piecesPerKg})
           ON CONFLICT (tenant_id, product_id)
-          DO UPDATE SET oodai_weight_kg = ${item.oodaiWeightKg}, updated_at = NOW()
+          DO UPDATE SET oodai_weight_kg = ${item.oodaiWeightKg}, pieces_per_kg = ${piecesPerKg}, updated_at = NOW()
           RETURNING *
         `;
         results.push(row[0]);

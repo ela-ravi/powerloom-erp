@@ -93,16 +93,19 @@ export class PaavuIssuanceService {
       notes?: string;
     },
   ) {
-    // Validate wager is Type 2 or 4
-    const wagerProfile = await sql<{ wager_type: number }[]>`
-      SELECT wager_type FROM wager_profiles WHERE user_id = ${data.wagerId} AND tenant_id = ${tenantId}
+    // Validate wager has oodai_only work scope
+    const wagerProfile = await sql<{ work_scope: string }[]>`
+      SELECT wt.work_scope
+      FROM wager_profiles wp
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
+      WHERE wp.user_id = ${data.wagerId} AND wp.tenant_id = ${tenantId}
     `;
     if (wagerProfile.length === 0) {
       throw AppError.notFound("Wager not found");
     }
-    if (wagerProfile[0].wager_type !== 2 && wagerProfile[0].wager_type !== 4) {
+    if (wagerProfile[0].work_scope !== "oodai_only") {
       throw AppError.validation(
-        "Paavu can only be issued to Type 2 or Type 4 wagers (oodai-only)",
+        "Paavu can only be issued to oodai-only wagers",
       );
     }
 
@@ -229,22 +232,24 @@ export class PaavuIssuanceService {
 
   async getEligibleWagers(tenantId: string) {
     const wagers = await sql<
-      { user_id: string; name: string; wager_type: number }[]
+      { user_id: string; name: string; wager_type_id: string; wager_type_name: string }[]
     >`
-      SELECT wp.user_id, u.name, wp.wager_type
+      SELECT wp.user_id, u.name, wp.wager_type_id, wt.name AS wager_type_name
       FROM wager_profiles wp
       JOIN users u ON u.id = wp.user_id
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
       WHERE wp.tenant_id = ${tenantId}
         AND wp.is_active = true
         AND u.is_active = true
-        AND wp.wager_type IN (2, 4)
+        AND wt.work_scope = 'oodai_only'
       ORDER BY u.name
     `;
 
     return wagers.map((w) => ({
       userId: w.user_id,
       name: w.name,
-      wagerType: w.wager_type,
+      wagerTypeId: w.wager_type_id,
+      wagerTypeName: w.wager_type_name,
     }));
   }
 

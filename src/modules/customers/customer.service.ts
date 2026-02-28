@@ -206,6 +206,29 @@ export class CustomerService {
     }
   }
 
+  async delete(tenantId: string, id: string) {
+    const existing = await sql<CustomerRow[]>`
+      SELECT * FROM customers WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Customer not found");
+    }
+
+    const inUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM invoices
+      WHERE tenant_id = ${tenantId} AND customer_id = ${id}
+    `;
+    if (parseInt(inUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this customer — it has invoice records",
+      );
+    }
+
+    await sql`
+      DELETE FROM customers WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+  }
+
   async getProductPriceByProduct(tenantId: string, customerId: string, productId: string) {
     const rows = await sql<CustomerProductPriceRow[]>`
       SELECT cpp.*, p.name AS product_name

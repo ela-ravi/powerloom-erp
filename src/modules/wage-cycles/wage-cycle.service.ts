@@ -110,18 +110,19 @@ export class WageCycleService {
 
       // Generate wage records for all active wagers
       const wagers = await tx<
-        { user_id: string; wager_type: number; id: string }[]
+        { user_id: string; wage_basis: string; id: string }[]
       >`
-        SELECT wp.user_id, wp.wager_type, wp.id
+        SELECT wp.user_id, wt.wage_basis, wp.id
         FROM wager_profiles wp
+        JOIN wager_types wt ON wt.id = wp.wager_type_id
         WHERE wp.tenant_id = ${tenantId} AND wp.is_active = true
       `;
 
       for (const wager of wagers) {
         let grossWage = 0;
 
-        if (wager.wager_type === 1 || wager.wager_type === 3) {
-          // Type 1/3: wage per kg — use shift rates when shift_enabled
+        if (wager.wage_basis === "per_kg") {
+          // Per-kg wagers: wage per kg — use shift rates when shift_enabled
           const production = shiftEnabled
             ? await tx<{ total: string }[]>`
                 SELECT COALESCE(SUM(pr.weight_kg * COALESCE(swr.wage_rate_per_kg, p.wage_rate_per_kg)), 0) as total
@@ -145,7 +146,7 @@ export class WageCycleService {
               `;
           grossWage = parseFloat(production[0].total);
         } else {
-          // Type 2/4: wage per piece — use shift rates when shift_enabled
+          // Per-piece wagers: wage per piece — use shift rates when shift_enabled
           const production = shiftEnabled
             ? await tx<{ total: string }[]>`
                 SELECT COALESCE(SUM(pr.piece_count * COALESCE(swr.wage_rate_per_piece, p.wage_rate_per_piece)), 0) as total

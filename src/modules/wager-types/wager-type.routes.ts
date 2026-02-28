@@ -6,21 +6,20 @@ import { validate } from "../../middleware/validate.js";
 import { Permission } from "../../types/enums.js";
 import type { AuthenticatedRequest } from "../../types/api.js";
 import {
-  createLoomSchema,
-  updateLoomSchema,
-  assignWagerSchema,
-  loomListQuerySchema,
-} from "./loom.schema.js";
-import { LoomService } from "./loom.service.js";
+  createWagerTypeSchema,
+  updateWagerTypeSchema,
+  wagerTypeListQuerySchema,
+} from "./wager-type.schema.js";
+import { WagerTypeService } from "./wager-type.service.js";
 
 const router: IRouter = Router();
-const service = new LoomService();
+const service = new WagerTypeService();
 
-// POST /api/looms
+// POST /api/wager-types
 router.post(
   "/",
   authenticate,
-  validate({ body: createLoomSchema }),
+  validate({ body: createWagerTypeSchema }),
   requirePermission(Permission.MASTER_DATA),
   tenantScope,
   async (req, res, next) => {
@@ -34,11 +33,11 @@ router.post(
   },
 );
 
-// GET /api/looms
+// GET /api/wager-types
 router.get(
   "/",
   authenticate,
-  validate({ query: loomListQuerySchema }),
+  validate({ query: wagerTypeListQuerySchema }),
   tenantScope,
   async (req, res, next) => {
     try {
@@ -54,11 +53,11 @@ router.get(
   },
 );
 
-// PUT /api/looms/:id
+// PUT /api/wager-types/:id
 router.put(
   "/:id",
   authenticate,
-  validate({ body: updateLoomSchema }),
+  validate({ body: updateWagerTypeSchema }),
   requirePermission(Permission.MASTER_DATA),
   tenantScope,
   async (req, res, next) => {
@@ -76,43 +75,4 @@ router.put(
   },
 );
 
-// PUT /api/looms/:id/assign
-router.put(
-  "/:id/assign",
-  authenticate,
-  validate({ body: assignWagerSchema }),
-  requirePermission(Permission.MASTER_DATA),
-  tenantScope,
-  async (req, res, next) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const result = await service.assignWager(
-        authReq.user.tenantId,
-        req.params.id as string,
-        req.body.wagerId,
-      );
-      res.json({ data: result });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-// DELETE /api/looms/:id
-router.delete(
-  "/:id",
-  authenticate,
-  requirePermission(Permission.MASTER_DATA),
-  tenantScope,
-  async (req, res, next) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      await service.delete(authReq.user.tenantId, req.params.id as string);
-      res.status(204).send();
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-export const loomRoutes = router;
+export const wagerTypeRoutes = router;

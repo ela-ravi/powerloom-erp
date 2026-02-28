@@ -3,20 +3,20 @@ import { uuidSchema } from "../../shared/schemas.js";
 
 export const createWagerSchema = z.object({
   userId: uuidSchema,
-  wagerType: z.number().int().min(1).max(4),
+  wagerTypeId: z.string().uuid(),
   advanceBalance: z.coerce.number().min(0).default(0),
   originalAdvance: z.coerce.number().min(0).default(0),
 });
 
 export const updateWagerSchema = z.object({
-  wagerType: z.number().int().min(1).max(4).optional(),
+  wagerTypeId: z.string().uuid().optional(),
   isActive: z.boolean().optional(),
 });
 
 export const wagerListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
-  wagerType: z.coerce.number().int().min(1).max(4).optional(),
+  wagerTypeId: z.string().uuid().optional(),
   isActive: z
     .enum(["true", "false"])
     .transform((v) => v === "true")

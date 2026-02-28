@@ -122,6 +122,26 @@ router.put(
   },
 );
 
+// PUT /api/users/:id/reactivate - Reactivate user
+router.put(
+  "/:id/reactivate",
+  authenticate,
+  authorize(UserRole.OWNER),
+  tenantScope,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const user = await userService.reactivate(
+        authReq.user.tenantId,
+        req.params.id as string,
+      );
+      res.json({ data: user });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 // GET /api/users/:id/permissions - Get staff permissions
 router.get(
   "/:id/permissions",

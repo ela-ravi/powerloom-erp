@@ -445,4 +445,47 @@ export class ProductService {
     `;
     return toShiftRateResponse(result[0]);
   }
+
+  async delete(tenantId: string, id: string) {
+    const existing = await sql<ProductRow[]>`
+      SELECT * FROM products WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Product not found");
+    }
+
+    const stockInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM inventory_stock
+      WHERE tenant_id = ${tenantId} AND product_id = ${id}
+    `;
+    if (parseInt(stockInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this product — it has inventory stock records",
+      );
+    }
+
+    const pricesInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM customer_product_prices
+      WHERE tenant_id = ${tenantId} AND product_id = ${id}
+    `;
+    if (parseInt(pricesInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this product — it has customer price records",
+      );
+    }
+
+    const wageRatesInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM shift_wage_rates
+      WHERE tenant_id = ${tenantId} AND product_id = ${id}
+    `;
+    if (parseInt(wageRatesInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this product — it has shift wage rate records",
+      );
+    }
+
+    await sql`
+      DELETE FROM products WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+  }
 }

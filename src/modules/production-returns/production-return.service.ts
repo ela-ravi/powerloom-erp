@@ -60,9 +60,10 @@ function toResponse(row: ProductionReturnRow) {
 export class ProductionReturnService {
   async getWagerContext(tenantId: string, wagerId: string) {
     const [wagerProfile, assignedLooms, recentCombos, issuedColors] = await Promise.all([
-      sql<{ wager_type: number }[]>`
-        SELECT wp.wager_type
+      sql<{ wager_type_id: string; wage_basis: string; loom_ownership: string; work_scope: string }[]>`
+        SELECT wp.wager_type_id, wt.wage_basis, wt.loom_ownership, wt.work_scope
         FROM wager_profiles wp
+        JOIN wager_types wt ON wt.id = wp.wager_type_id
         WHERE wp.user_id = ${wagerId} AND wp.tenant_id = ${tenantId}
       `,
       sql<{ id: string; loom_number: string; loom_type_name: string | null }[]>`
@@ -105,7 +106,10 @@ export class ProductionReturnService {
     }
 
     return {
-      wagerType: wagerProfile[0].wager_type,
+      wagerTypeId: wagerProfile[0].wager_type_id,
+      wageBasis: wagerProfile[0].wage_basis,
+      loomOwnership: wagerProfile[0].loom_ownership,
+      workScope: wagerProfile[0].work_scope,
       assignedLooms: assignedLooms.map((l) => ({
         id: l.id,
         loomNumber: l.loom_number,
@@ -142,27 +146,28 @@ export class ProductionReturnService {
       notes?: string;
     },
   ) {
-    // Get wager profile to determine type
-    const wagerProfile = await sql<{ wager_type: number }[]>`
-      SELECT wager_type FROM wager_profiles WHERE user_id = ${data.wagerId} AND tenant_id = ${tenantId}
+    // Get wager profile to determine type properties
+    const wagerProfile = await sql<{ wage_basis: string; work_scope: string }[]>`
+      SELECT wt.wage_basis, wt.work_scope
+      FROM wager_profiles wp
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
+      WHERE wp.user_id = ${data.wagerId} AND wp.tenant_id = ${tenantId}
     `;
     if (wagerProfile.length === 0) {
       throw AppError.validation("Wager profile not found");
     }
 
-    const wagerType = wagerProfile[0].wager_type;
+    const { wage_basis: wageBasis } = wagerProfile[0];
 
-    // Validate based on wager type
-    // Type 1/3: Paavu + Oodai → weight_kg mandatory
-    if ([1, 3].includes(wagerType) && !data.weightKg) {
+    // Validate based on wage basis
+    if (wageBasis === "per_kg" && !data.weightKg) {
       throw AppError.validation(
-        "Weight is mandatory for Type 1/3 wagers (Paavu + Oodai)",
+        "Weight is mandatory for per-kg wagers (Paavu + Oodai)",
       );
     }
-    // Type 2/4: Oodai only → piece_count mandatory
-    if ([2, 4].includes(wagerType) && !data.pieceCount) {
+    if (wageBasis === "per_piece" && !data.pieceCount) {
       throw AppError.validation(
-        "Piece count is mandatory for Type 2/4 wagers (Oodai only)",
+        "Piece count is mandatory for per-piece wagers (Oodai only)",
       );
     }
 
@@ -293,6 +298,198 @@ export class ProductionReturnService {
         `[FRAUD ALERT] Color substitution detected for wager ${data.wagerId}: issued=${issuance[0].color}, returned=${data.color}`,
       );
     }
+  }
+
+  async update(
+    tenantId: string,
+    returnId: string,
+    userId: string,
+    data: {
+      loomId?: string;
+      godownId?: string;
+      productId?: string;
+      color?: string;
+      batchId?: string | null;
+      shiftId?: string | null;
+      pieceCount?: number | null;
+      weightKg?: number | null;
+      returnDate?: string;
+      notes?: string | null;
+    },
+  ) {
+    // Fetch existing record
+    const existing = await sql<ProductionReturnRow[]>`
+      SELECT * FROM production_returns
+      WHERE id = ${returnId} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Production return not found");
+    }
+    const old = existing[0];
+
+    // Determine new values (merge with existing)
+    const newGodownId = data.godownId ?? old.godown_id;
+    const newProductId = data.productId ?? old.product_id;
+    const newColor = data.color ?? old.color;
+    const newBatchId = data.batchId !== undefined ? data.batchId : old.batch_id;
+    const newPieceCount = data.pieceCount !== undefined ? data.pieceCount : old.piece_count;
+    const newWeightKg = data.weightKg !== undefined ? data.weightKg : (old.weight_kg ? parseFloat(old.weight_kg) : null);
+
+    // Validate shift_id if provided
+    if (data.shiftId !== undefined && data.shiftId !== null) {
+      const settings = await sql<{ shift_enabled: boolean }[]>`
+        SELECT shift_enabled FROM tenant_settings WHERE tenant_id = ${tenantId}
+      `;
+      if (settings.length === 0 || !settings[0].shift_enabled) {
+        throw AppError.validation("Cannot use shift_id when shift tracking is disabled");
+      }
+      const shift = await sql`SELECT id FROM shifts WHERE id = ${data.shiftId} AND tenant_id = ${tenantId}`;
+      if (shift.length === 0) {
+        throw AppError.validation("Shift not found");
+      }
+    }
+
+    // Reverse old inventory
+    const oldBatchCoalesce = old.batch_id ?? "00000000-0000-0000-0000-000000000000";
+    const oldInv = await sql<{ id: string; quantity: string; weight_kg: string | null }[]>`
+      SELECT id, quantity, weight_kg FROM inventory
+      WHERE tenant_id = ${tenantId}
+        AND godown_id = ${old.godown_id}
+        AND product_id = ${old.product_id}
+        AND color = ${old.color}
+        AND stage = 'woven'
+        AND COALESCE(batch_id, '00000000-0000-0000-0000-000000000000') = ${oldBatchCoalesce}
+    `;
+    if (oldInv.length > 0) {
+      const oldQtyToRemove = old.piece_count ?? 0;
+      const oldWeightToRemove = old.weight_kg ? parseFloat(old.weight_kg) : 0;
+      const newQty = Math.max(0, parseFloat(oldInv[0].quantity) - oldQtyToRemove);
+      const newWeight = oldInv[0].weight_kg
+        ? Math.max(0, parseFloat(oldInv[0].weight_kg) - oldWeightToRemove)
+        : null;
+      await sql`
+        UPDATE inventory SET quantity = ${newQty}, weight_kg = ${newWeight}, updated_at = NOW()
+        WHERE id = ${oldInv[0].id}
+      `;
+      await sql`
+        INSERT INTO inventory_movements (tenant_id, inventory_id, movement_type, quantity_change, weight_change_kg, reference_type, reference_id, created_by)
+        VALUES (${tenantId}, ${oldInv[0].id}, 'decrease', ${oldQtyToRemove}, ${oldWeightToRemove > 0 ? oldWeightToRemove : null}, 'production_return_edit', ${returnId}, ${userId})
+      `;
+    }
+
+    // Apply new inventory
+    const newBatchCoalesce = newBatchId ?? "00000000-0000-0000-0000-000000000000";
+    const newInv = await sql<{ id: string; quantity: string; weight_kg: string | null }[]>`
+      SELECT id, quantity, weight_kg FROM inventory
+      WHERE tenant_id = ${tenantId}
+        AND godown_id = ${newGodownId}
+        AND product_id = ${newProductId}
+        AND color = ${newColor}
+        AND stage = 'woven'
+        AND COALESCE(batch_id, '00000000-0000-0000-0000-000000000000') = ${newBatchCoalesce}
+    `;
+
+    const quantityToAdd = newPieceCount ?? 0;
+    const weightToAdd = newWeightKg ?? 0;
+
+    let inventoryId: string;
+    if (newInv.length > 0) {
+      const updQty = parseFloat(newInv[0].quantity) + quantityToAdd;
+      const updWeight = newInv[0].weight_kg
+        ? parseFloat(newInv[0].weight_kg) + weightToAdd
+        : weightToAdd > 0 ? weightToAdd : null;
+      await sql`
+        UPDATE inventory SET quantity = ${updQty}, weight_kg = ${updWeight}, updated_at = NOW()
+        WHERE id = ${newInv[0].id}
+      `;
+      inventoryId = newInv[0].id;
+    } else {
+      const inv = await sql<{ id: string }[]>`
+        INSERT INTO inventory (tenant_id, godown_id, product_id, color, stage, batch_id, quantity, weight_kg)
+        VALUES (${tenantId}, ${newGodownId}, ${newProductId}, ${newColor}, 'woven', ${newBatchId ?? null}, ${quantityToAdd}, ${weightToAdd > 0 ? weightToAdd : null})
+        RETURNING id
+      `;
+      inventoryId = inv[0].id;
+    }
+
+    await sql`
+      INSERT INTO inventory_movements (tenant_id, inventory_id, movement_type, quantity_change, weight_change_kg, reference_type, reference_id, created_by)
+      VALUES (${tenantId}, ${inventoryId}, 'increase', ${quantityToAdd}, ${weightToAdd > 0 ? weightToAdd : null}, 'production_return_edit', ${returnId}, ${userId})
+    `;
+
+    // Update the production return record
+    const newShiftId = data.shiftId !== undefined ? data.shiftId : old.shift_id;
+    const result = await sql<ProductionReturnRow[]>`
+      UPDATE production_returns SET
+        loom_id = ${data.loomId ?? old.loom_id},
+        godown_id = ${newGodownId},
+        product_id = ${newProductId},
+        color = ${newColor},
+        batch_id = ${newBatchId},
+        shift_id = ${newShiftId},
+        piece_count = ${newPieceCount},
+        weight_kg = ${newWeightKg},
+        return_date = ${data.returnDate ?? old.return_date},
+        notes = ${data.notes !== undefined ? data.notes : old.notes},
+        updated_at = NOW()
+      WHERE id = ${returnId} AND tenant_id = ${tenantId}
+      RETURNING *,
+        (SELECT name FROM users WHERE id = production_returns.wager_id) AS wager_name,
+        (SELECT loom_number FROM looms WHERE id = production_returns.loom_id) AS loom_number,
+        (SELECT name FROM godowns WHERE id = production_returns.godown_id) AS godown_name,
+        (SELECT name FROM products WHERE id = production_returns.product_id) AS product_name,
+        (SELECT batch_number FROM batches WHERE id = production_returns.batch_id) AS batch_number,
+        (SELECT name FROM shifts WHERE id = production_returns.shift_id) AS shift_name
+    `;
+
+    return toResponse(result[0]);
+  }
+
+  async delete(tenantId: string, returnId: string, userId: string) {
+    // Fetch existing record
+    const existing = await sql<ProductionReturnRow[]>`
+      SELECT * FROM production_returns
+      WHERE id = ${returnId} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Production return not found");
+    }
+    const old = existing[0];
+
+    // Reverse inventory
+    const batchCoalesce = old.batch_id ?? "00000000-0000-0000-0000-000000000000";
+    const inv = await sql<{ id: string; quantity: string; weight_kg: string | null }[]>`
+      SELECT id, quantity, weight_kg FROM inventory
+      WHERE tenant_id = ${tenantId}
+        AND godown_id = ${old.godown_id}
+        AND product_id = ${old.product_id}
+        AND color = ${old.color}
+        AND stage = 'woven'
+        AND COALESCE(batch_id, '00000000-0000-0000-0000-000000000000') = ${batchCoalesce}
+    `;
+
+    if (inv.length > 0) {
+      const qtyToRemove = old.piece_count ?? 0;
+      const weightToRemove = old.weight_kg ? parseFloat(old.weight_kg) : 0;
+      const newQty = Math.max(0, parseFloat(inv[0].quantity) - qtyToRemove);
+      const newWeight = inv[0].weight_kg
+        ? Math.max(0, parseFloat(inv[0].weight_kg) - weightToRemove)
+        : null;
+      await sql`
+        UPDATE inventory SET quantity = ${newQty}, weight_kg = ${newWeight}, updated_at = NOW()
+        WHERE id = ${inv[0].id}
+      `;
+      await sql`
+        INSERT INTO inventory_movements (tenant_id, inventory_id, movement_type, quantity_change, weight_change_kg, reference_type, reference_id, created_by)
+        VALUES (${tenantId}, ${inv[0].id}, 'decrease', ${qtyToRemove}, ${weightToRemove > 0 ? weightToRemove : null}, 'production_return_delete', ${returnId}, ${userId})
+      `;
+    }
+
+    // Delete the production return record
+    await sql`
+      DELETE FROM production_returns
+      WHERE id = ${returnId} AND tenant_id = ${tenantId}
+    `;
   }
 
   async findAll(

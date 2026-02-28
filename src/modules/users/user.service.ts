@@ -39,7 +39,7 @@ export class UserService {
       name: string;
       role: string;
       language?: string;
-      wagerType?: number;
+      wagerTypeId?: string;
       initialAdvance?: number;
     },
   ) {
@@ -63,11 +63,20 @@ export class UserService {
 
     // Auto-create wager profile for wager role
     if (data.role === "wager") {
-      const wagerType = data.wagerType ?? 1;
+      let wagerTypeId = data.wagerTypeId;
+      if (!wagerTypeId) {
+        // Default to "Type 1" for the tenant
+        const defaultType = await sql<{ id: string }[]>`
+          SELECT id FROM wager_types WHERE tenant_id = ${tenantId} AND name = 'Type 1' LIMIT 1
+        `;
+        if (defaultType.length > 0) {
+          wagerTypeId = defaultType[0].id;
+        }
+      }
       const advBal = data.initialAdvance ?? 0;
       await sql`
-        INSERT INTO wager_profiles (tenant_id, user_id, wager_type, advance_balance, original_advance)
-        VALUES (${tenantId}, ${user.id}, ${wagerType}, ${advBal}, ${advBal})
+        INSERT INTO wager_profiles (tenant_id, user_id, wager_type_id, advance_balance, original_advance)
+        VALUES (${tenantId}, ${user.id}, ${wagerTypeId!}, ${advBal}, ${advBal})
       `;
     }
 
@@ -136,7 +145,7 @@ export class UserService {
       phone: string;
       language: string;
       role: string;
-      wagerType: number;
+      wagerTypeId: string;
     }>,
   ) {
     const existing = await sql<UserRow[]>`
@@ -167,11 +176,11 @@ export class UserService {
       RETURNING *
     `;
 
-    // Update wager profile if wagerType provided
-    if (data.wagerType != null && existing[0].role === "wager") {
+    // Update wager profile if wagerTypeId provided
+    if (data.wagerTypeId != null && existing[0].role === "wager") {
       await sql`
         UPDATE wager_profiles SET
-          wager_type = ${data.wagerType},
+          wager_type_id = ${data.wagerTypeId},
           updated_at = NOW()
         WHERE user_id = ${id} AND tenant_id = ${tenantId}
       `;
@@ -183,6 +192,18 @@ export class UserService {
   async deactivate(tenantId: string, id: string) {
     const result = await sql<UserRow[]>`
       UPDATE users SET is_active = false, updated_at = NOW()
+      WHERE id = ${id} AND tenant_id = ${tenantId}
+      RETURNING *
+    `;
+    if (result.length === 0) {
+      throw AppError.notFound("User not found");
+    }
+    return toUserResponse(result[0]);
+  }
+
+  async reactivate(tenantId: string, id: string) {
+    const result = await sql<UserRow[]>`
+      UPDATE users SET is_active = true, updated_at = NOW()
       WHERE id = ${id} AND tenant_id = ${tenantId}
       RETURNING *
     `;

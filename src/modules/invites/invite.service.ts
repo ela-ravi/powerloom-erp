@@ -211,11 +211,15 @@ export class InviteService {
       `;
       const user = users[0];
 
-      // If role is wager, auto-create wager_profiles (type=1)
+      // If role is wager, auto-create wager_profiles with default Type 1
       if (invite.role === "wager") {
         await tx`
-          INSERT INTO wager_profiles (tenant_id, user_id, name, phone, wager_type, loom_ownership, is_active)
-          VALUES (${invite.tenant_id}, ${user.id}, ${data.name}, ${data.phone}, 1, 'wager', true)
+          INSERT INTO wager_profiles (tenant_id, user_id, wager_type_id, is_active)
+          VALUES (
+            ${invite.tenant_id}, ${user.id},
+            (SELECT id FROM wager_types WHERE tenant_id = ${invite.tenant_id} AND name = 'Type 1' LIMIT 1),
+            true
+          )
         `;
       }
 

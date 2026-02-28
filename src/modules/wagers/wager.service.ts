@@ -5,13 +5,17 @@ interface WagerProfileRow {
   id: string;
   tenant_id: string;
   user_id: string;
-  wager_type: number;
+  wager_type_id: string;
   advance_balance: string;
   original_advance: string;
   additional_advances: string;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
+  wager_type_name?: string;
+  wage_basis?: string;
+  loom_ownership?: string;
+  work_scope?: string;
 }
 
 function toResponse(row: WagerProfileRow) {
@@ -19,7 +23,11 @@ function toResponse(row: WagerProfileRow) {
     id: row.id,
     tenantId: row.tenant_id,
     userId: row.user_id,
-    wagerType: row.wager_type,
+    wagerTypeId: row.wager_type_id,
+    wagerTypeName: row.wager_type_name ?? null,
+    wageBasis: row.wage_basis ?? null,
+    loomOwnership: row.loom_ownership ?? null,
+    workScope: row.work_scope ?? null,
     advanceBalance: parseFloat(row.advance_balance),
     originalAdvance: parseFloat(row.original_advance),
     additionalAdvances: parseFloat(row.additional_advances),
@@ -34,7 +42,7 @@ export class WagerService {
     tenantId: string,
     data: {
       userId: string;
-      wagerType: number;
+      wagerTypeId: string;
       advanceBalance?: number;
       originalAdvance?: number;
     },
@@ -62,11 +70,19 @@ export class WagerService {
     const origAdv = data.originalAdvance ?? 0;
 
     const result = await sql<WagerProfileRow[]>`
-      INSERT INTO wager_profiles (tenant_id, user_id, wager_type, advance_balance, original_advance)
-      VALUES (${tenantId}, ${data.userId}, ${data.wagerType}, ${advBal}, ${origAdv})
+      INSERT INTO wager_profiles (tenant_id, user_id, wager_type_id, advance_balance, original_advance)
+      VALUES (${tenantId}, ${data.userId}, ${data.wagerTypeId}, ${advBal}, ${origAdv})
       RETURNING *
     `;
-    return toResponse(result[0]);
+
+    // Fetch with JOIN for response
+    const full = await sql<WagerProfileRow[]>`
+      SELECT wp.*, wt.name AS wager_type_name, wt.wage_basis, wt.loom_ownership, wt.work_scope
+      FROM wager_profiles wp
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
+      WHERE wp.id = ${result[0].id}
+    `;
+    return toResponse(full[0]);
   }
 
   async findAll(
@@ -74,7 +90,7 @@ export class WagerService {
     query: {
       limit?: number;
       offset?: number;
-      wagerType?: number;
+      wagerTypeId?: string;
       isActive?: boolean;
     } = {},
   ) {
@@ -84,17 +100,19 @@ export class WagerService {
     const countResult = await sql<{ count: string }[]>`
       SELECT COUNT(*) as count FROM wager_profiles
       WHERE tenant_id = ${tenantId}
-      ${query.wagerType ? sql`AND wager_type = ${query.wagerType}` : sql``}
+      ${query.wagerTypeId ? sql`AND wager_type_id = ${query.wagerTypeId}` : sql``}
       ${query.isActive !== undefined ? sql`AND is_active = ${query.isActive}` : sql``}
     `;
     const total = parseInt(countResult[0].count, 10);
 
     const data = await sql<(WagerProfileRow & { user_name?: string })[]>`
-      SELECT wp.*, u.name AS user_name
+      SELECT wp.*, u.name AS user_name,
+        wt.name AS wager_type_name, wt.wage_basis, wt.loom_ownership, wt.work_scope
       FROM wager_profiles wp
       LEFT JOIN users u ON u.id = wp.user_id
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
       WHERE wp.tenant_id = ${tenantId}
-      ${query.wagerType ? sql`AND wp.wager_type = ${query.wagerType}` : sql``}
+      ${query.wagerTypeId ? sql`AND wp.wager_type_id = ${query.wagerTypeId}` : sql``}
       ${query.isActive !== undefined ? sql`AND wp.is_active = ${query.isActive}` : sql``}
       ORDER BY wp.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -108,7 +126,10 @@ export class WagerService {
 
   async findById(tenantId: string, id: string) {
     const result = await sql<WagerProfileRow[]>`
-      SELECT * FROM wager_profiles WHERE id = ${id} AND tenant_id = ${tenantId}
+      SELECT wp.*, wt.name AS wager_type_name, wt.wage_basis, wt.loom_ownership, wt.work_scope
+      FROM wager_profiles wp
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
+      WHERE wp.id = ${id} AND wp.tenant_id = ${tenantId}
     `;
     if (result.length === 0) {
       throw AppError.notFound("Wager profile not found");
@@ -118,7 +139,10 @@ export class WagerService {
 
   async findByUserId(tenantId: string, userId: string) {
     const result = await sql<WagerProfileRow[]>`
-      SELECT * FROM wager_profiles WHERE user_id = ${userId} AND tenant_id = ${tenantId}
+      SELECT wp.*, wt.name AS wager_type_name, wt.wage_basis, wt.loom_ownership, wt.work_scope
+      FROM wager_profiles wp
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
+      WHERE wp.user_id = ${userId} AND wp.tenant_id = ${tenantId}
     `;
     if (result.length === 0) {
       throw AppError.notFound("Wager profile not found");
@@ -129,7 +153,7 @@ export class WagerService {
   async update(
     tenantId: string,
     id: string,
-    data: Partial<{ wagerType: number; isActive: boolean }>,
+    data: Partial<{ wagerTypeId: string; isActive: boolean }>,
   ) {
     const existing = await sql<WagerProfileRow[]>`
       SELECT * FROM wager_profiles WHERE id = ${id} AND tenant_id = ${tenantId}
@@ -140,13 +164,69 @@ export class WagerService {
 
     const result = await sql<WagerProfileRow[]>`
       UPDATE wager_profiles SET
-        wager_type = COALESCE(${data.wagerType ?? null}, wager_type),
+        wager_type_id = COALESCE(${data.wagerTypeId ?? null}, wager_type_id),
         is_active = COALESCE(${data.isActive ?? null}, is_active),
         updated_at = NOW()
       WHERE id = ${id} AND tenant_id = ${tenantId}
       RETURNING *
     `;
-    return toResponse(result[0]);
+
+    // Fetch with JOIN for response
+    const full = await sql<WagerProfileRow[]>`
+      SELECT wp.*, wt.name AS wager_type_name, wt.wage_basis, wt.loom_ownership, wt.work_scope
+      FROM wager_profiles wp
+      JOIN wager_types wt ON wt.id = wp.wager_type_id
+      WHERE wp.id = ${result[0].id}
+    `;
+    return toResponse(full[0]);
+  }
+
+  async delete(tenantId: string, id: string) {
+    const existing = await sql<WagerProfileRow[]>`
+      SELECT * FROM wager_profiles WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Wager profile not found");
+    }
+
+    const userId = existing[0].user_id;
+
+    // Check production_returns for wager references
+    const prodInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM production_returns
+      WHERE tenant_id = ${tenantId} AND wager_id = ${userId}
+    `;
+    if (parseInt(prodInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this wager — it has production return records",
+      );
+    }
+
+    // Check wage_records for worker references
+    const wageInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM wage_records
+      WHERE tenant_id = ${tenantId} AND worker_id = ${userId}
+    `;
+    if (parseInt(wageInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this wager — it has wage records",
+      );
+    }
+
+    // Check looms for assigned_wager_id references
+    const loomInUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM looms
+      WHERE tenant_id = ${tenantId} AND assigned_wager_id = ${userId}
+    `;
+    if (parseInt(loomInUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this wager — it is assigned to a loom",
+      );
+    }
+
+    await sql`
+      DELETE FROM wager_profiles WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
   }
 
   async getPerformance(
@@ -199,7 +279,7 @@ export class WagerService {
         AND start_time <= ${dateRange.to}
     `;
     const downtimeMinutes = parseInt(downtimeResult[0].total_minutes, 10);
-    const downtimeDays = Math.round((downtimeMinutes / (8 * 60)) * 100) / 100; // Assume 8hr workday
+    const downtimeDays = Math.round((downtimeMinutes / (8 * 60)) * 100) / 100;
 
     // Get actual production (piece count sum)
     const productionResult = await sql<{ total: string }[]>`
@@ -265,7 +345,7 @@ export class WagerService {
       rankings.push({
         wagerId: wager.id,
         userId: wager.user_id,
-        wagerType: wager.wager_type,
+        wagerTypeId: wager.wager_type_id,
         actual: perf.actual,
         expectedCapacity: perf.expectedCapacity,
         utilization: perf.utilization,

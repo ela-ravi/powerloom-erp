@@ -13,42 +13,22 @@ describe("Wager Schemas", () => {
     it("accepts valid wager profile data", () => {
       const result = createWagerSchema.safeParse({
         userId: crypto.randomUUID(),
-        wagerType: 1,
+        wagerTypeId: crypto.randomUUID(),
       });
       expect(result.success).toBe(true);
     });
 
-    it("accepts all wager types (1-4)", () => {
-      for (const wagerType of [1, 2, 3, 4]) {
-        expect(
-          createWagerSchema.safeParse({
-            userId: crypto.randomUUID(),
-            wagerType,
-          }).success,
-        ).toBe(true);
-      }
-    });
-
-    it("rejects wager type 0", () => {
+    it("rejects non-UUID wagerTypeId", () => {
       const result = createWagerSchema.safeParse({
         userId: crypto.randomUUID(),
-        wagerType: 0,
+        wagerTypeId: "not-a-uuid",
       });
       expect(result.success).toBe(false);
     });
 
-    it("rejects wager type 5", () => {
+    it("rejects missing wagerTypeId", () => {
       const result = createWagerSchema.safeParse({
         userId: crypto.randomUUID(),
-        wagerType: 5,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects non-integer wager type", () => {
-      const result = createWagerSchema.safeParse({
-        userId: crypto.randomUUID(),
-        wagerType: 1.5,
       });
       expect(result.success).toBe(false);
     });
@@ -56,7 +36,7 @@ describe("Wager Schemas", () => {
     it("defaults advance balance to 0", () => {
       const result = createWagerSchema.parse({
         userId: crypto.randomUUID(),
-        wagerType: 1,
+        wagerTypeId: crypto.randomUUID(),
       });
       expect(result.advanceBalance).toBe(0);
     });
@@ -64,7 +44,7 @@ describe("Wager Schemas", () => {
     it("defaults original advance to 0", () => {
       const result = createWagerSchema.parse({
         userId: crypto.randomUUID(),
-        wagerType: 1,
+        wagerTypeId: crypto.randomUUID(),
       });
       expect(result.originalAdvance).toBe(0);
     });
@@ -72,7 +52,7 @@ describe("Wager Schemas", () => {
     it("accepts advance balance", () => {
       const result = createWagerSchema.safeParse({
         userId: crypto.randomUUID(),
-        wagerType: 2,
+        wagerTypeId: crypto.randomUUID(),
         advanceBalance: 5000,
         originalAdvance: 5000,
       });
@@ -80,14 +60,14 @@ describe("Wager Schemas", () => {
     });
 
     it("rejects missing userId", () => {
-      const result = createWagerSchema.safeParse({ wagerType: 1 });
+      const result = createWagerSchema.safeParse({ wagerTypeId: crypto.randomUUID() });
       expect(result.success).toBe(false);
     });
 
     it("rejects invalid userId format", () => {
       const result = createWagerSchema.safeParse({
         userId: "not-a-uuid",
-        wagerType: 1,
+        wagerTypeId: crypto.randomUUID(),
       });
       expect(result.success).toBe(false);
     });
@@ -95,7 +75,7 @@ describe("Wager Schemas", () => {
     it("rejects negative advance balance", () => {
       const result = createWagerSchema.safeParse({
         userId: crypto.randomUUID(),
-        wagerType: 1,
+        wagerTypeId: crypto.randomUUID(),
         advanceBalance: -100,
       });
       expect(result.success).toBe(false);
@@ -103,8 +83,8 @@ describe("Wager Schemas", () => {
   });
 
   describe("updateWagerSchema", () => {
-    it("accepts wager type update", () => {
-      const result = updateWagerSchema.safeParse({ wagerType: 3 });
+    it("accepts wagerTypeId update", () => {
+      const result = updateWagerSchema.safeParse({ wagerTypeId: crypto.randomUUID() });
       expect(result.success).toBe(true);
     });
 
@@ -113,8 +93,8 @@ describe("Wager Schemas", () => {
       expect(result.success).toBe(true);
     });
 
-    it("rejects invalid wager type", () => {
-      const result = updateWagerSchema.safeParse({ wagerType: 5 });
+    it("rejects invalid wagerTypeId", () => {
+      const result = updateWagerSchema.safeParse({ wagerTypeId: "not-a-uuid" });
       expect(result.success).toBe(false);
     });
 
@@ -131,9 +111,10 @@ describe("Wager Schemas", () => {
       expect(result.offset).toBe(0);
     });
 
-    it("accepts wagerType filter", () => {
-      const result = wagerListQuerySchema.parse({ wagerType: "2" });
-      expect(result.wagerType).toBe(2);
+    it("accepts wagerTypeId filter", () => {
+      const id = crypto.randomUUID();
+      const result = wagerListQuerySchema.parse({ wagerTypeId: id });
+      expect(result.wagerTypeId).toBe(id);
     });
 
     it("transforms isActive string to boolean", () => {
@@ -141,8 +122,8 @@ describe("Wager Schemas", () => {
       expect(result.isActive).toBe(true);
     });
 
-    it("rejects invalid wagerType filter", () => {
-      const result = wagerListQuerySchema.safeParse({ wagerType: "5" });
+    it("rejects invalid wagerTypeId filter", () => {
+      const result = wagerListQuerySchema.safeParse({ wagerTypeId: "not-uuid" });
       expect(result.success).toBe(false);
     });
   });
@@ -154,7 +135,7 @@ describe("Wager Routes", () => {
 
     const res = await request(app).post("/api/wagers").send({
       userId: crypto.randomUUID(),
-      wagerType: 1,
+      wagerTypeId: crypto.randomUUID(),
     });
 
     expect(res.status).toBe(401);
@@ -168,7 +149,7 @@ describe("Wager Routes", () => {
     const res = await request(app)
       .post("/api/wagers")
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ userId: crypto.randomUUID(), wagerType: 1 });
+      .send({ userId: crypto.randomUUID(), wagerTypeId: crypto.randomUUID() });
 
     expect(res.status).toBe(403);
   });
@@ -193,7 +174,7 @@ describe("Wager Routes", () => {
     const res = await request(app)
       .put("/api/wagers/some-id")
       .set("Authorization", `Bearer ${accessToken}`)
-      .send({ wagerType: 2 });
+      .send({ wagerTypeId: crypto.randomUUID() });
 
     expect(res.status).toBe(403);
   });

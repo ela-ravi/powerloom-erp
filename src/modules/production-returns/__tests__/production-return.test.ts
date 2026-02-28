@@ -9,7 +9,7 @@ import crypto from "crypto";
 
 describe("Production Return Schemas", () => {
   describe("createProductionReturnSchema", () => {
-    it("accepts valid return with piece count (Type 2/4)", () => {
+    it("accepts valid return with piece count (per-piece wagers)", () => {
       const result = createProductionReturnSchema.safeParse({
         wagerId: crypto.randomUUID(),
         loomId: crypto.randomUUID(),
@@ -21,7 +21,7 @@ describe("Production Return Schemas", () => {
       expect(result.success).toBe(true);
     });
 
-    it("accepts valid return with weight (Type 1/3)", () => {
+    it("accepts valid return with weight (per-kg wagers)", () => {
       const result = createProductionReturnSchema.safeParse({
         wagerId: crypto.randomUUID(),
         loomId: crypto.randomUUID(),
@@ -131,43 +131,31 @@ describe("Production Return Schemas", () => {
   });
 });
 
-describe("Wager Type Validation Logic", () => {
-  // Type 1/3: Paavu + Oodai → weight mandatory
-  it("Type 1 wager requires weight_kg", () => {
-    const wagerType = 1;
+describe("Wager Type Property-Based Validation Logic", () => {
+  // per_kg wagers (formerly Type 1/3): weight mandatory
+  it("per_kg wager requires weight_kg", () => {
+    const wageBasis = "per_kg";
     const weightKg: number | undefined = undefined;
-    expect([1, 3].includes(wagerType) && !weightKg).toBe(true);
+    expect(wageBasis === "per_kg" && !weightKg).toBe(true);
   });
 
-  it("Type 3 wager requires weight_kg", () => {
-    const wagerType = 3;
-    const weightKg: number | undefined = undefined;
-    expect([1, 3].includes(wagerType) && !weightKg).toBe(true);
-  });
-
-  it("Type 1 wager with weight passes", () => {
-    const wagerType = 1;
+  it("per_kg wager with weight passes", () => {
+    const wageBasis = "per_kg";
     const weightKg = 25.5;
-    expect([1, 3].includes(wagerType) && !weightKg).toBe(false);
+    expect(wageBasis === "per_kg" && !weightKg).toBe(false);
   });
 
-  // Type 2/4: Oodai only → piece_count mandatory
-  it("Type 2 wager requires piece_count", () => {
-    const wagerType = 2;
+  // per_piece wagers (formerly Type 2/4): piece_count mandatory
+  it("per_piece wager requires piece_count", () => {
+    const wageBasis = "per_piece";
     const pieceCount: number | undefined = undefined;
-    expect([2, 4].includes(wagerType) && !pieceCount).toBe(true);
+    expect(wageBasis === "per_piece" && !pieceCount).toBe(true);
   });
 
-  it("Type 4 wager requires piece_count", () => {
-    const wagerType = 4;
-    const pieceCount: number | undefined = undefined;
-    expect([2, 4].includes(wagerType) && !pieceCount).toBe(true);
-  });
-
-  it("Type 2 wager with piece count passes", () => {
-    const wagerType = 2;
+  it("per_piece wager with piece count passes", () => {
+    const wageBasis = "per_piece";
     const pieceCount = 100;
-    expect([2, 4].includes(wagerType) && !pieceCount).toBe(false);
+    expect(wageBasis === "per_piece" && !pieceCount).toBe(false);
   });
 });
 

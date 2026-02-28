@@ -145,4 +145,21 @@ router.put(
   },
 );
 
+// DELETE /api/wagers/:id
+router.delete(
+  "/:id",
+  authenticate,
+  authorize(UserRole.OWNER),
+  tenantScope,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      await service.delete(authReq.user.tenantId, req.params.id as string);
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 export const wagerRoutes = router;

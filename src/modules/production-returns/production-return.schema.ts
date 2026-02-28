@@ -16,6 +16,19 @@ export const createProductionReturnSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const updateProductionReturnSchema = z.object({
+  loomId: uuidSchema.optional(),
+  godownId: uuidSchema.optional(),
+  productId: uuidSchema.optional(),
+  color: z.string().min(1).max(100).optional(),
+  batchId: uuidSchema.nullable().optional(),
+  shiftId: uuidSchema.nullable().optional(),
+  pieceCount: z.coerce.number().int().positive().nullable().optional(),
+  weightKg: z.coerce.number().positive().nullable().optional(),
+  returnDate: z.string().optional(),
+  notes: z.string().nullable().optional(),
+});
+
 export const productionReturnListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),

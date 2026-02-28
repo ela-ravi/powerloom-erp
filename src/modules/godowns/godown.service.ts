@@ -136,4 +136,27 @@ export class GodownService {
     `;
     return toResponse(result[0]);
   }
+
+  async delete(tenantId: string, id: string) {
+    const existing = await sql<GodownRow[]>`
+      SELECT * FROM godowns WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Godown not found");
+    }
+
+    const inUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM inventory_stock
+      WHERE tenant_id = ${tenantId} AND godown_id = ${id}
+    `;
+    if (parseInt(inUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this godown — it has inventory stock records",
+      );
+    }
+
+    await sql`
+      DELETE FROM godowns WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+  }
 }

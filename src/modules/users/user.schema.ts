@@ -5,7 +5,7 @@ export const createUserSchema = z.object({
   name: z.string().min(1).max(255),
   role: z.enum(["owner", "staff", "wager", "tailor", "packager", "paavu_oati"]),
   language: z.string().min(2).max(5).default("en"),
-  wagerType: z.coerce.number().int().min(1).max(4).optional(),
+  wagerTypeId: z.string().uuid().optional(),
   initialAdvance: z.coerce.number().min(0).optional(),
 });
 
@@ -17,7 +17,7 @@ export const updateUserSchema = z.object({
     .optional(),
   language: z.string().min(2).max(5).optional(),
   role: z.enum(["owner", "staff", "wager", "tailor", "packager", "paavu_oati"]).optional(),
-  wagerType: z.coerce.number().int().min(1).max(4).optional(),
+  wagerTypeId: z.string().uuid().optional(),
 });
 
 export const setPermissionsSchema = z.object({

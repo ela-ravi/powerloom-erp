@@ -4,6 +4,7 @@ import { uuidSchema } from "../../shared/schemas.js";
 export const upsertProductOodaiWeightSchema = z.object({
   productId: uuidSchema,
   oodaiWeightKg: z.coerce.number().positive(),
+  piecesPerKg: z.coerce.number().int().positive().nullish(),
 });
 
 export const bulkUpsertProductOodaiWeightSchema = z.object({
@@ -11,6 +12,7 @@ export const bulkUpsertProductOodaiWeightSchema = z.object({
     z.object({
       productId: uuidSchema,
       oodaiWeightKg: z.coerce.number().positive(),
+      piecesPerKg: z.coerce.number().int().positive().nullish(),
     }),
   ).min(1),
 });

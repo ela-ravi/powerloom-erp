@@ -8,6 +8,7 @@ import { Permission } from "../../types/enums.js";
 import type { AuthenticatedRequest } from "../../types/api.js";
 import {
   createProductionReturnSchema,
+  updateProductionReturnSchema,
   productionReturnListQuerySchema,
 } from "./production-return.schema.js";
 import { ProductionReturnService } from "./production-return.service.js";
@@ -58,6 +59,32 @@ router.post(
   },
 );
 
+// PUT /api/production-returns/:id
+router.put(
+  "/:id",
+  authenticate,
+  validate({
+    params: z.object({ id: z.string().uuid() }),
+    body: updateProductionReturnSchema,
+  }),
+  requirePermission(Permission.PRODUCTION_ENTRY),
+  tenantScope,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const result = await service.update(
+        authReq.user.tenantId,
+        req.params.id as string,
+        authReq.user.id,
+        req.body,
+      );
+      res.json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 // GET /api/production-returns
 router.get(
   "/",
@@ -72,6 +99,28 @@ router.get(
         req.query as any,
       );
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// DELETE /api/production-returns/:id
+router.delete(
+  "/:id",
+  authenticate,
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  requirePermission(Permission.PRODUCTION_ENTRY),
+  tenantScope,
+  async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      await service.delete(
+        authReq.user.tenantId,
+        req.params.id as string,
+        authReq.user.id,
+      );
+      res.status(204).send();
     } catch (err) {
       next(err);
     }

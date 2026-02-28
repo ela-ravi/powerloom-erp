@@ -103,4 +103,27 @@ export class SupplierService {
     `;
     return toResponse(result[0]);
   }
+
+  async delete(tenantId: string, id: string) {
+    const existing = await sql<SupplierRow[]>`
+      SELECT * FROM suppliers WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+    if (existing.length === 0) {
+      throw AppError.notFound("Supplier not found");
+    }
+
+    const inUse = await sql<{ count: string }[]>`
+      SELECT COUNT(*) as count FROM cone_purchases
+      WHERE tenant_id = ${tenantId} AND supplier_id = ${id}
+    `;
+    if (parseInt(inUse[0].count, 10) > 0) {
+      throw AppError.conflict(
+        "Cannot delete this supplier — it has purchase records",
+      );
+    }
+
+    await sql`
+      DELETE FROM suppliers WHERE id = ${id} AND tenant_id = ${tenantId}
+    `;
+  }
 }
