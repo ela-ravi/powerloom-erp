@@ -27,6 +27,7 @@ interface ProductRow {
   gst_rate_pct: string;
   color_pricing_mode: string;
   hsn_code: string | null;
+  paavu_length: string | null;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -86,6 +87,7 @@ function toProductResponse(row: ProductRow) {
     gstRatePct: parseFloat(row.gst_rate_pct),
     colorPricingMode: row.color_pricing_mode,
     hsnCode: row.hsn_code,
+    paavuLength: row.paavu_length ? parseFloat(row.paavu_length) : null,
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -140,14 +142,14 @@ export class ProductService {
         oodai_consumption_grams, oodai_wastage_grams, oodai_wastage_pct, oodai_kg_per_paavu,
         wage_rate_per_kg, wage_rate_per_piece, stitch_rate_per_piece, knot_rate_per_piece,
         small_bundle_count, large_bundle_count, bundle_rate_small, bundle_rate_large,
-        gst_rate_pct, color_pricing_mode, hsn_code
+        gst_rate_pct, color_pricing_mode, hsn_code, paavu_length
       ) VALUES (
         ${tenantId}, ${data.name}, ${data.size}, ${data.actualSize ?? null}, ${data.category},
         ${data.paavuToPieceRatio}, ${data.paavuConsumptionGrams ?? 0}, ${data.paavuWastageGrams ?? 0}, ${data.paavuWastagePct ?? null},
         ${oodaiConsumptionGrams}, ${data.oodaiWastageGrams ?? 0}, ${data.oodaiWastagePct ?? null}, ${data.oodaiKgPerPaavu ?? null},
         ${data.wageRatePerKg ?? 0}, ${data.wageRatePerPiece ?? 0}, ${data.stitchRatePerPiece ?? 0}, ${data.knotRatePerPiece ?? 0},
         ${data.smallBundleCount ?? 10}, ${data.largeBundleCount ?? 50}, ${data.bundleRateSmall ?? 0}, ${data.bundleRateLarge ?? 0},
-        ${data.gstRatePct ?? 5.0}, ${data.colorPricingMode ?? "average"}, ${data.hsnCode ?? null}
+        ${data.gstRatePct ?? 5.0}, ${data.colorPricingMode ?? "average"}, ${data.hsnCode ?? null}, ${data.paavuLength ?? null}
       )
       RETURNING *
     `;
@@ -256,6 +258,7 @@ export class ProductService {
         gst_rate_pct = COALESCE(${data.gstRatePct ?? null}, gst_rate_pct),
         color_pricing_mode = COALESCE(${data.colorPricingMode ?? null}, color_pricing_mode),
         hsn_code = ${data.hsnCode !== undefined ? data.hsnCode : existing[0].hsn_code},
+        paavu_length = ${data.paavuLength !== undefined ? data.paavuLength : existing[0].paavu_length},
         is_active = COALESCE(${data.isActive ?? null}, is_active),
         updated_at = NOW()
       WHERE id = ${id} AND tenant_id = ${tenantId}

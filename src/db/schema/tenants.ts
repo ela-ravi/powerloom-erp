@@ -79,6 +79,12 @@ export const tenantSettings = pgTable("tenant_settings", {
   showWagerRanking: boolean("show_wager_ranking").notNull().default(false),
   currency: varchar("currency", { length: 3 }).notNull().default("INR"),
   locale: varchar("locale", { length: 10 }).notNull().default("en"),
+  productSizeUnit: varchar("product_size_unit", { length: 10 })
+    .notNull()
+    .default("inches"),
+  paavuLengthUnit: varchar("paavu_length_unit", { length: 10 })
+    .notNull()
+    .default("meters"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -27,6 +27,7 @@ export const createProductSchema = z.object({
   gstRatePct: decimalRate.default(5.0),
   colorPricingMode: z.enum(["average", "per_color"]).default("average"),
   hsnCode: z.string().max(20).nullable().optional(),
+  paavuLength: z.coerce.number().positive().optional(),
 });
 
 export const updateProductSchema = z.object({
@@ -53,6 +54,7 @@ export const updateProductSchema = z.object({
   gstRatePct: decimalRate.optional(),
   colorPricingMode: z.enum(["average", "per_color"]).optional(),
   hsnCode: z.string().max(20).nullable().optional(),
+  paavuLength: z.coerce.number().positive().nullable().optional(),
   isActive: z.boolean().optional(),
 });
 

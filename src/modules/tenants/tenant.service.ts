@@ -37,6 +37,8 @@ export interface TenantSettingsRow {
   show_wager_ranking: boolean;
   currency: string;
   locale: string;
+  product_size_unit: string;
+  paavu_length_unit: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -76,6 +78,8 @@ function toSettingsResponse(row: TenantSettingsRow) {
     showWagerRanking: row.show_wager_ranking,
     currency: row.currency,
     locale: row.locale,
+    productSizeUnit: row.product_size_unit,
+    paavuLengthUnit: row.paavu_length_unit,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -341,6 +345,8 @@ export class TenantService {
         show_wager_ranking = COALESCE(${(data.showWagerRanking as boolean) ?? null}, show_wager_ranking),
         currency = COALESCE(${(data.currency as string) ?? null}, currency),
         locale = COALESCE(${(data.locale as string) ?? null}, locale),
+        product_size_unit = COALESCE(${(data.productSizeUnit as string) ?? null}, product_size_unit),
+        paavu_length_unit = COALESCE(${(data.paavuLengthUnit as string) ?? null}, paavu_length_unit),
         updated_at = NOW()
       WHERE tenant_id = ${tenantId}
       RETURNING *

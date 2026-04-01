@@ -73,4 +73,10 @@ export const updateTenantSettingsSchema = z.object({
   showWagerRanking: z.boolean().optional(),
   currency: z.string().length(3).optional(),
   locale: z.string().min(2).max(10).optional(),
+  productSizeUnit: z
+    .enum(["inches", "cm", "meters", "yards", "feet"])
+    .optional(),
+  paavuLengthUnit: z
+    .enum(["meters", "yards", "feet", "inches", "cm"])
+    .optional(),
 });

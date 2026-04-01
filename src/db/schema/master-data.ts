@@ -169,6 +169,7 @@ export const products = pgTable(
       .notNull()
       .default("average"),
     hsnCode: varchar("hsn_code", { length: 20 }),
+    paavuLength: decimal("paavu_length", { precision: 10, scale: 4 }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
